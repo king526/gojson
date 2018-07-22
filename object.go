@@ -31,13 +31,7 @@ var (
 )
 
 type JsonObject struct {
-	object map[string]*jsoniter.RawMessage
-}
-
-func ReadObject(r io.Reader) (j *JsonObject, e error) {
-	j = &JsonObject{}
-	e = JsonIter.NewDecoder(r).Decode(&j.object)
-	return
+	kvs map[string]*jsoniter.RawMessage
 }
 
 func NewObject(r io.Reader) (j *JsonObject, e error) {
@@ -45,12 +39,12 @@ func NewObject(r io.Reader) (j *JsonObject, e error) {
 	if r == nil {
 		return
 	}
-	e = JsonIter.NewDecoder(r).Decode(&j.object)
+	e = JsonIter.NewDecoder(r).Decode(&j.kvs)
 	return
 }
 
 func (j *JsonObject) Read(key string, obj interface{}) error {
-	raw, ok := j.object[key]
+	raw, ok := j.kvs[key]
 	if !ok {
 		return ErrNotFound
 	}
@@ -61,7 +55,7 @@ func (j *JsonObject) Read(key string, obj interface{}) error {
 }
 
 func (j *JsonObject) ReadString(key string) (ret string, err error) {
-	raw, ok := j.object[key]
+	raw, ok := j.kvs[key]
 	if !ok {
 		err = ErrNotFound
 		return
@@ -78,7 +72,7 @@ func (j *JsonObject) ReadString(key string) (ret string, err error) {
 }
 
 func (j *JsonObject) ReadBool(key string) (ret bool, err error) {
-	raw, ok := j.object[key]
+	raw, ok := j.kvs[key]
 	if !ok {
 		err = ErrNotFound
 		return
@@ -106,7 +100,7 @@ func (j *JsonObject) ReadInt(key string) (int, error) {
 }
 
 func (j *JsonObject) ReadInt64(key string) (ret int64, err error) {
-	raw, ok := j.object[key]
+	raw, ok := j.kvs[key]
 	if !ok {
 		err = ErrNotFound
 		return
@@ -118,7 +112,7 @@ func (j *JsonObject) ReadInt64(key string) (ret int64, err error) {
 }
 
 func (j *JsonObject) ReadUint64(key string) (ret uint64, err error) {
-	raw, ok := j.object[key]
+	raw, ok := j.kvs[key]
 	if !ok {
 		err = ErrNotFound
 		return
@@ -146,7 +140,7 @@ func (j *JsonObject) ReadUint32(key string) (uint32, error) {
 }
 
 func (j *JsonObject) ReadFloat(key string) (ret float64, err error) {
-	raw, ok := j.object[key]
+	raw, ok := j.kvs[key]
 	if !ok {
 		err = ErrNotFound
 		return
@@ -158,7 +152,7 @@ func (j *JsonObject) ReadFloat(key string) (ret float64, err error) {
 }
 
 func (j *JsonObject) ReadRawValueAsString(key string) (ret string, err error) {
-	raw, ok := j.object[key]
+	raw, ok := j.kvs[key]
 	if !ok {
 		err = ErrNotFound
 		return
@@ -167,4 +161,20 @@ func (j *JsonObject) ReadRawValueAsString(key string) (ret string, err error) {
 		ret = string(*raw)
 	}
 	return
+}
+
+//GetAsObject read the key to JsonObject,return empty object if the value is null
+//this library is ame at dynimac marshal map to final entity struct,so path chain get value is not considered,
+//because each time call GetAsObject we will serilize the data as no memory.
+func (j *JsonObject) GetAsObject(key string) (obj *JsonObject, err error) {
+	raw, ok := j.kvs[key]
+	if !ok {
+		err = ErrNotFound
+		return
+	}
+	if raw == nil {
+		obj = &JsonObject{kvs: map[string]*jsoniter.RawMessage{}}
+		return
+	}
+	return NewObject(bytes.NewReader(*raw))
 }

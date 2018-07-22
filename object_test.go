@@ -17,6 +17,7 @@ type testStruct struct {
 	Array []interface{}
 	Map   map[string]interface{}
 	Obj   *testStruct
+	Nil   interface{}
 }
 
 var (
@@ -28,6 +29,11 @@ var (
 		Bool:  true,
 		Array: []interface{}{1, true, "world", nil},
 		Obj:   &testStruct{Str: "simple"},
+		Map: map[string]interface{}{
+			"key1": 123,
+			"key2": "val2",
+			"key3": &testStruct{Str: "shadow"},
+		},
 	})
 )
 
@@ -76,4 +82,37 @@ func Test_Read(t *testing.T) {
 	//read raw bytes
 	str, _ = obj.ReadRawValueAsString("Array")
 	assert.Equal(t, `[1,true,"world",null]`, str)
+}
+
+func Test_ReadAsObject(t *testing.T) {
+	obj, err := NewObject(strings.NewReader(s))
+	if err != nil {
+		t.Fail()
+	}
+	sub, err := obj.GetAsObject("Obj")
+	if err != nil {
+		t.Fail()
+	}
+	str, _ := sub.ReadString("Str")
+	assert.Equal(t, `simple`, str)
+	//map
+	sub, err = obj.GetAsObject("Map")
+	if err != nil {
+		t.Fail()
+	}
+	var elem *testStruct
+	err = sub.Read("key3", &elem)
+	assert.True(t, err == nil)
+	assert.Equal(t, `shadow`, elem.Str)
+	//null
+	sub, err = obj.GetAsObject("Nil")
+	if err != nil {
+		t.Fail()
+	}
+	assert.True(t, 0 == len(sub.kvs))
+	//read other type as object
+	_, err = obj.GetAsObject("Array")
+	assert.True(t, err != nil)
+	_, err = obj.GetAsObject("Str")
+	assert.True(t, err != nil)
 }
