@@ -1,6 +1,7 @@
 package gojson
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -38,81 +39,85 @@ var (
 )
 
 func Test_Read(t *testing.T) {
-	obj, err := NewObject(strings.NewReader(s))
-	if err != nil {
-		t.Fail()
+	obj := New(strings.NewReader(s))
+	if obj.Err() != nil {
+		t.Fatal(obj.Err)
 	}
-	str, _ := obj.ReadString("Str")
+	fmt.Println(string(*obj.raw))
+	it, _ := obj.Get("Str").Interface()
+	assert.True(t, "hello" == it)
+	str, _ := obj.Get("Str").String()
 	assert.True(t, "hello" == str)
-	boolV, _ := obj.ReadBool("Bool")
+	boolV, _ := obj.Get("Bool").Bool()
 	assert.True(t, boolV)
-	int64V, _ := obj.ReadInt64("Int")
+	int64V, _ := obj.Get("Int").Int64()
 	assert.True(t, int64V == math.MaxInt64)
-	uintV, _ := obj.ReadUint64("Uint")
+	uintV, _ := obj.Get("Uint").Uint64()
 	assert.True(t, math.MaxUint64 == uintV)
 	//test int overflow
-	intV, err := obj.ReadInt32("Int")
+	intV, err := obj.Get("Int").Int32()
 	assert.True(t, err == ErrOverflow)
 	assert.True(t, intV == -1)
-	uint32V, err := obj.ReadUint32("Int")
+	uint32V, err := obj.Get("Int").Uint32()
 	assert.True(t, err == ErrOverflow)
 	assert.True(t, uint32V == math.MaxUint32)
 
-	floatV, _ := obj.ReadFloat("Float")
+	floatV, _ := obj.Get("Float").Float()
 	assert.Equal(t, 9.125e+30, floatV)
 	//test type convert under rule
-	floatV, _ = obj.ReadFloat("Uint")
+	floatV, _ = obj.Get("Uint").Float()
 	assert.Equal(t, float64(math.MaxUint64), floatV)
 	//test unmatch type read
-	str, err = obj.ReadString("Float")
+	str, err = obj.Get("Float").String()
 	assert.True(t, err != nil)
 	//read array
 	var arrays []interface{}
-	obj.Read("Array", &arrays)
+	obj.Get("Array").Read(&arrays)
 	assert.True(t, len(arrays) == 4)
 	assert.True(t, arrays[2] == "world")
+	str, _ = obj.Get("Array").Index(2).String()
+	assert.Equal(t, "world", str)
 	//read object
 	var elem *testStruct
-	err = obj.Read("Obj", &elem)
+	err = obj.Get("Obj").Read(&elem)
 	assert.True(t, err == nil)
 	assert.Equal(t, `simple`, elem.Str)
 	var objAsMap map[string]interface{}
-	err = obj.Read("Obj", &objAsMap)
+	err = obj.Get("Obj").Read(&objAsMap)
 	assert.True(t, err == nil)
 	//read raw bytes
-	str, _ = obj.ReadRawValueAsString("Array")
+	str, _ = obj.Get("Array").Data()
 	assert.Equal(t, `[1,true,"world",null]`, str)
+
 }
 
-func Test_ReadAsObject(t *testing.T) {
-	obj, err := NewObject(strings.NewReader(s))
-	if err != nil {
-		t.Fail()
+func Test_PathGet(t *testing.T) {
+	obj := New(strings.NewReader(s))
+	if obj.Err() != nil {
+		t.Fatal(obj.Err())
 	}
-	sub, err := obj.GetAsObject("Obj")
+	str, err := obj.Get("Obj").Get("Str").String()
 	if err != nil {
-		t.Fail()
+		t.Fatal(err)
 	}
-	str, _ := sub.ReadString("Str")
 	assert.Equal(t, `simple`, str)
 	//map
-	sub, err = obj.GetAsObject("Map")
-	if err != nil {
-		t.Fail()
+	sub := obj.Get("Map")
+	if obj.Err() != nil {
+		t.Fatal(sub.Err())
 	}
+	str, err = sub.Get("key2").String()
+	assert.Equal(t, str, "val2")
 	var elem *testStruct
-	err = sub.Read("key3", &elem)
+	err = sub.Get("key3").Read(&elem)
 	assert.True(t, err == nil)
 	assert.Equal(t, `shadow`, elem.Str)
 	//null
-	sub, err = obj.GetAsObject("Nil")
-	if err != nil {
-		t.Fail()
-	}
-	assert.True(t, 0 == len(sub.kvs))
+	sub = obj.Get("Nil").Get("2")
+	assert.Equal(t, ErrDecode, sub.Err())
 	//read other type as object
-	_, err = obj.GetAsObject("Array")
-	assert.True(t, err != nil)
-	_, err = obj.GetAsObject("Str")
-	assert.True(t, err != nil)
+	_, err = obj.Get("Array").Get("Arr").String()
+	assert.Equal(t, ErrDecode, err)
+	_, err = obj.Get("Ztr").Get("Str").String()
+	assert.Equal(t, ErrNotFound, err)
 }
