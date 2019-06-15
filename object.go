@@ -42,6 +42,19 @@ type Json struct {
 	err error
 }
 
+func FromBytes(bytes []byte) (j *Json) {
+	j = &Json{}
+	if bytes == nil {
+		return
+	}
+	j.err = JsonIter.Unmarshal(bytes,&j.raw)
+	return
+}
+
+func FromString(str string) (j *Json) {
+	return FromBytes([]byte(str))
+}
+
 func New(r io.Reader) (j *Json) {
 	j = &Json{}
 	if r == nil {
@@ -91,7 +104,7 @@ func (j *Json) Get(key string) *Json {
 		j.typ |= typeNotMap & typeNotArray
 		return &Json{err: ErrDecode}
 	}
-	err := JsonIter.NewDecoder(bytes.NewReader(*j.raw)).Decode(&j.kvs)
+	err := JsonIter.Unmarshal(*j.raw,&j.kvs)
 	if err != nil {
 		j.typ |= typeNotMap
 		return &Json{err: ErrDecode}
@@ -116,7 +129,7 @@ func (j *Json) Index(idx int) *Json {
 		j.typ |= typeNotMap & typeNotArray
 		return &Json{err: ErrDecode}
 	}
-	err := JsonIter.NewDecoder(bytes.NewReader(*j.raw)).Decode(&j.arr)
+	err := JsonIter.Unmarshal(*j.raw,&j.arr)
 	if err != nil {
 		j.typ |= typeNotArray
 		return &Json{err: ErrDecode}
