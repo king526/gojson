@@ -89,6 +89,35 @@ func (j *Json) IsNull() (ok bool, err error) {
 	return
 }
 
+func (j *Json) Keys() ([]string,error) {
+	if j.err != nil {
+		return nil,j.err
+	}
+	if j.kvs == nil {
+		if j.typ&typeNotMap != 0 {
+			return nil, ErrDecode
+		}
+		if j.raw == nil {
+			j.typ |= typeNotMap & typeNotArray
+			return nil, ErrDecode
+		}
+		err := JsonIter.Unmarshal(*j.raw, &j.kvs)
+		if err != nil {
+			j.typ |= typeNotMap
+			return nil, ErrDecode
+		} else {
+			j.typ |= typeNotArray
+		}
+	}
+	var i int
+	ss:=make([]string ,len(j.kvs))
+	for k,_:=range j.kvs{
+		ss[i]=k
+		i++
+	}
+	return ss,nil
+}
+
 //Get return Json of the key,return ErrWrongType if caller not a JsonObject
 func (j *Json) Get(key string) *Json {
 	if j.err != nil {
@@ -112,6 +141,59 @@ func (j *Json) Get(key string) *Json {
 		j.typ |= typeNotArray
 	}
 	return j.get(key)
+}
+
+
+func (j *Json) ArrayLength() (int,error) {
+	if j.err != nil {
+		return 0,j.err
+	}
+	if j.arr != nil {
+		return len(j.arr),nil
+	}
+	if j.typ&typeNotArray != 0 {
+		return 0, ErrDecode
+	}
+	if j.raw == nil {
+		j.typ |= typeNotMap & typeNotArray
+		return 0, ErrDecode
+	}
+	err := JsonIter.Unmarshal(*j.raw,&j.arr)
+	if err != nil {
+		j.typ |= typeNotArray
+		return 0, ErrDecode
+	} else {
+		j.typ |= typeNotMap
+	}
+	return len(j.arr),nil
+}
+
+
+func (j *Json) Array() ([]*Json,error) {
+	if j.err != nil {
+		return nil,j.err
+	}
+	if j.arr == nil {
+		if j.typ&typeNotArray != 0 {
+			return nil, ErrDecode
+		}
+		if j.raw == nil {
+			j.typ |= typeNotMap & typeNotArray
+			return nil, ErrDecode
+		}
+		err := JsonIter.Unmarshal(*j.raw, &j.arr)
+		if err != nil {
+			j.typ |= typeNotArray
+			return nil, ErrDecode
+		} else {
+			j.typ |= typeNotMap
+		}
+	}
+	js:=make([]*Json,len(j.arr))
+	for i,a:=range j.arr{
+		js[i]= &Json{raw:a}
+	}
+	return js,nil
 }
 
 //Get return Json of the key,return ErrWrongType if caller not a JsonArray
@@ -139,6 +221,8 @@ func (j *Json) Index(idx int) *Json {
 	return j.index(idx)
 }
 
+
+
 func (j *Json) get(key string) *Json {
 	raw, ok := j.kvs[key]
 	if !ok {
@@ -148,7 +232,7 @@ func (j *Json) get(key string) *Json {
 }
 
 func (j *Json) index(idx int) *Json {
-	if len(j.arr)+1 < idx {
+	if len(j.arr)-1 < idx {
 		return &Json{err: ErrNotFound}
 	}
 	return &Json{raw: j.arr[idx]}
@@ -163,6 +247,22 @@ func (j *Json) Read(obj interface{}) error {
 
 //Interface unmarshal to an interface{} ,same as Read
 func (j *Json) Interface() (it interface{}, err error) {
+	if j.err != nil || j.raw == nil {
+		return nil, j.err
+	}
+	err = JsonIter.Unmarshal(*j.raw, &it)
+	return
+}
+
+func (j *Json) Strings() (it []string, err error) {
+	if j.err != nil || j.raw == nil {
+		return nil, j.err
+	}
+	err = JsonIter.Unmarshal(*j.raw, &it)
+	return
+}
+
+func (j *Json) Ints() (it []int, err error) {
 	if j.err != nil || j.raw == nil {
 		return nil, j.err
 	}
